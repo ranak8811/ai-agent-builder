@@ -1,19 +1,18 @@
 import { useState, useEffect, useRef } from "react";
-import {
-  DndContext,
-  PointerSensor,
-  useSensor,
-  useSensors,
-} from "@dnd-kit/core";
+import { DndContext } from "@dnd-kit/core";
 import type { DragEndEvent } from "@dnd-kit/core";
 import { ToastContainer, toast } from "react-toastify";
+import { motion } from "framer-motion";
+import Swal from "sweetalert2";
 import "react-toastify/dist/ReactToastify.css";
 
 import type { AgentData, SavedAgent } from "./agent-types";
 import { Header } from "./components/layout/Header";
 import { ConfigOptions } from "./components/builder/ConfigOptions";
 import { AgentPreview } from "./components/preview/AgentPreview";
-import { SavedAgents } from "./components/saved/SavedAgents";
+import { SavedAgentsSection } from "./components/saved/SavedAgentsSection";
+import { DeveloperAgent } from "./components/layout/DeveloperAgent";
+import { useBuilderHistory } from "./hooks/useBuilderHistory";
 
 function App() {
   const [data, setData] = useState<AgentData | null>(null);
@@ -25,84 +24,61 @@ function App() {
   const [selectedSkills, setSelectedSkills] = useState<string[]>([]);
   const [selectedLayers, setSelectedLayers] = useState<string[]>([]);
   const [selectedProvider, setSelectedProvider] = useState<string>("");
-
-  // Drag state
-  const [isDragging, setIsDragging] = useState(false);
-
-  // Saving states
-  const [savedAgents, setSavedAgents] = useState<SavedAgent[]>([]);
   const [agentName, setAgentName] = useState("");
+  const [isDragging, setIsDragging] = useState(false);
+  const [savedAgents, setSavedAgents] = useState<SavedAgent[]>([]);
+  const [sessionTime, setSessionTime] = useState(0);
 
-  // Sensors for better DND experience
-  const sensors = useSensors(
-    useSensor(PointerSensor, {
-      activationConstraint: {
-        distance: 8,
-      },
-    }),
-  );
+  // History Hook
+  const { canUndo, canRedo, undo, redo, saveToHistory } = useBuilderHistory({
+    profileId: "",
+    skillIds: [],
+    layerIds: [],
+  });
 
-  // Ref to track agentName for the analytics heartbeat
   const agentNameRef = useRef(agentName);
   useEffect(() => {
     agentNameRef.current = agentName;
   }, [agentName]);
 
-  const [sessionTime, setSessionTime] = useState(0);
-
+  // Core Effects
   useEffect(() => {
-    const interval = setInterval(() => {
-      setSessionTime((prev) => prev + 1);
-    }, 1000);
-    return () => clearInterval(interval);
+    const interval = setInterval(() => setSessionTime((p) => p + 1), 1000);
+    const analytics = setInterval(() => {
+      console.log(
+        `[Heartbeat] Working on: "${agentNameRef.current || "Draft"}"`,
+      );
+    }, 8000);
+    return () => {
+      clearInterval(interval);
+      clearInterval(analytics);
+    };
   }, []);
 
   useEffect(() => {
     const saved = localStorage.getItem("savedAgents");
-    if (saved) {
+    if (saved)
       try {
         setSavedAgents(JSON.parse(saved));
       } catch (e) {
-        console.error("Failed to parse saved agents", e);
+        console.error(e);
       }
-    }
-  }, []);
-
-  useEffect(() => {
-    const analyticsInterval = setInterval(() => {
-      const currentName = agentNameRef.current;
-      if (currentName !== "") {
-        console.log(
-          `[Analytics Heartbeat] User is working on agent named: "${currentName}"`,
-        );
-      } else {
-        console.log(
-          `[Analytics Heartbeat] User is working on an unnamed agent draft...`,
-        );
-      }
-    }, 8000);
-
-    return () => clearInterval(analyticsInterval);
   }, []);
 
   const fetchAPI = async () => {
     setLoading(true);
     setError(null);
     try {
-      const delay = Math.floor(Math.random() * 800) + 400;
-      await new Promise((resolve) => setTimeout(resolve, delay));
-
-      const response = await fetch("/data.json");
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-      const jsonData: AgentData = await response.json();
+      const delay = Math.floor(Math.random() * 1000) + 1000;
+      await new Promise((r) => setTimeout(r, delay));
+      const res = await fetch("/data.json");
+      if (!res.ok) throw new Error(`Status: ${res.status}`);
+      const jsonData: AgentData = await res.json();
       setData(jsonData);
     } catch (err: unknown) {
-      console.error("Error fetching data:", err);
-      setError(
-        err instanceof Error ? err.message : "Failed to fetch agent data",
-      );
+      const msg = err instanceof Error ? err.message : "Fetch failed";
+      setError(msg);
+      toast.error(msg);
     } finally {
       setLoading(false);
     }
@@ -112,24 +88,45 @@ function App() {
     fetchAPI();
   }, []);
 
-  const handleSaveAgent = () => {
-    if (!agentName.trim()) {
-      toast.error("Identity required. Please enter an agent name.", {
-        className: "font-bold",
+  // Handler Wrappers
+  const updateProfile = (id: string) => {
+    setSelectedProfile(id);
+    saveToHistory({
+      profileId: id,
+      skillIds: selectedSkills,
+      layerIds: selectedLayers,
+    });
+  };
+
+  const updateSkills = (update: string[] | ((prev: string[]) => string[])) => {
+    setSelectedSkills((prev) => {
+      const next = typeof update === "function" ? update(prev) : update;
+      saveToHistory({
+        profileId: selectedProfile,
+        skillIds: next,
+        layerIds: selectedLayers,
       });
+      return next;
+    });
+  };
+
+  const updateLayers = (update: string[] | ((prev: string[]) => string[])) => {
+    setSelectedLayers((prev) => {
+      const next = typeof update === "function" ? update(prev) : update;
+      saveToHistory({
+        profileId: selectedProfile,
+        skillIds: selectedSkills,
+        layerIds: next,
+      });
+      return next;
+    });
+  };
+
+  const handleSaveAgent = () => {
+    if (!agentName.trim() || !selectedProfile) {
+      toast.error("Incomplete deployment configuration.");
       return;
     }
-
-    if (!selectedProfile) {
-      toast.warning(
-        "Architecture incomplete. Select a base intelligence core.",
-        {
-          className: "font-bold",
-        },
-      );
-      return;
-    }
-
     const newAgent: SavedAgent = {
       name: agentName,
       profileId: selectedProfile,
@@ -137,119 +134,122 @@ function App() {
       layerIds: selectedLayers,
       provider: selectedProvider,
     };
-
-    const updatedAgents = [newAgent, ...savedAgents]; // Newest first
-    setSavedAgents(updatedAgents);
-    localStorage.setItem("savedAgents", JSON.stringify(updatedAgents));
+    const updated = [newAgent, ...savedAgents];
+    setSavedAgents(updated);
+    localStorage.setItem("savedAgents", JSON.stringify(updated));
     setAgentName("");
-
-    toast.success(`Unit ${newAgent.name} successfully commissioned.`, {
+    toast.success(`Unit ${newAgent.name} commissioned.`, {
       icon: <span>⚡</span>,
-      className: "font-bold rounded-2xl shadow-2xl",
     });
   };
 
   const handleLoadAgent = (agent: SavedAgent) => {
     setSelectedProfile(agent.profileId || "");
     setSelectedSkills(agent.skillIds || []);
-    setSelectedLayers([...(agent.layerIds || [])]);
+    setSelectedLayers(agent.layerIds || []);
     setAgentName(agent.name);
     setSelectedProvider(agent.provider || "");
     window.scrollTo({ top: 0, behavior: "smooth" });
-    toast.info(`Hot-loading: ${agent.name}`, {
-      className: "font-bold rounded-2xl",
-    });
+    toast.info(`Loaded: ${agent.name}`);
   };
 
-  const handleDeleteAgent = (indexToRemove: number) => {
-    const agentToDelete = savedAgents[indexToRemove];
-    const updatedAgents = savedAgents.filter(
-      (_, index) => index !== indexToRemove,
-    );
-    setSavedAgents(updatedAgents);
-    localStorage.setItem("savedAgents", JSON.stringify(updatedAgents));
-    toast.error(`Unit ${agentToDelete.name} decommissioned.`, {
-      className: "font-bold rounded-2xl",
-    });
+  const handleDeleteAgent = (idx: number) => {
+    const updated = savedAgents.filter((_, i) => i !== idx);
+    setSavedAgents(updated);
+    localStorage.setItem("savedAgents", JSON.stringify(updated));
+    toast.error("Unit decommissioned.");
   };
 
+  // SweetAlert2 Implementation for Fleet Decommissioning
   const handleClearAll = () => {
-    if (
-      confirm("Decommission entire fleet? All active units will be terminated.")
-    ) {
-      setSavedAgents([]);
-      localStorage.removeItem("savedAgents");
-      toast.error("Fleet terminated. All data purged.", {
-        className: "font-bold rounded-2xl",
-      });
-    }
-  };
-
-  const handleDragStart = () => {
-    setIsDragging(true);
+    Swal.fire({
+      title: "Decommission Fleet?",
+      text: "This protocol will terminate all active units and purge the database. This action is irreversible!",
+      icon: "warning",
+      showCancelButton: true,
+      confirmButtonColor: "#4f46e5", // Indigo-600
+      cancelButtonColor: "#ef4444", // Red-500
+      confirmButtonText: "Yes, terminate fleet",
+      background: "#ffffff",
+      customClass: {
+        popup: "rounded-[2rem]",
+        confirmButton: "rounded-xl font-bold px-6 py-3",
+        cancelButton: "rounded-xl font-bold px-6 py-3",
+      },
+    }).then((result) => {
+      if (result.isConfirmed) {
+        setSavedAgents([]);
+        localStorage.removeItem("savedAgents");
+        toast.error("Fleet database purged.");
+        Swal.fire({
+          title: "Purged!",
+          text: "The entire fleet has been decommissioned.",
+          icon: "success",
+          confirmButtonColor: "#4f46e5",
+          customClass: { popup: "rounded-[2rem]" },
+        });
+      }
+    });
   };
 
   const handleDragEnd = (event: DragEndEvent) => {
     const { active, over } = event;
     setIsDragging(false);
-
     if (!over) return;
-
     const [type, id] = (active.id as string).split(":");
-    const itemName = active.data.current?.name;
-
-    if (type === "skill" && over.id === "skills-drop") {
-      if (!selectedSkills.includes(id)) {
-        setSelectedSkills((prev) => [...prev, id]);
-        toast.success(`Integrated: ${itemName}`, {
-          autoClose: 1000,
-          hideProgressBar: true,
-          className: "font-bold rounded-xl",
-        });
-      } else {
-        toast.info(`${itemName} is already integrated.`, {
-          autoClose: 1000,
-          hideProgressBar: true,
-          className: "font-bold rounded-xl",
-        });
-      }
-    } else if (type === "layer" && over.id === "layers-drop") {
-      if (!selectedLayers.includes(id)) {
-        setSelectedLayers((prev) => [...prev, id]);
-        toast.success(`Applied Filter: ${itemName}`, {
-          autoClose: 1000,
-          hideProgressBar: true,
-          className: "font-bold rounded-xl",
-        });
-      } else {
-        toast.info(`${itemName} is already active.`, {
-          autoClose: 1000,
-          hideProgressBar: true,
-          className: "font-bold rounded-xl",
-        });
-      }
+    if (
+      type === "skill" &&
+      over.id === "skills-drop" &&
+      !selectedSkills.includes(id)
+    ) {
+      updateSkills((prev) => [...prev, id]);
+      toast.success(`Integrated: ${active.data.current?.name}`, {
+        autoClose: 1000,
+      });
+    } else if (
+      type === "layer" &&
+      over.id === "layers-drop" &&
+      !selectedLayers.includes(id)
+    ) {
+      updateLayers((prev) => [...prev, id]);
+      toast.success(`Applied Filter: ${active.data.current?.name}`, {
+        autoClose: 1000,
+      });
     }
   };
 
   return (
     <DndContext
-      sensors={sensors}
-      onDragStart={handleDragStart}
+      onDragStart={() => setIsDragging(true)}
       onDragEnd={handleDragEnd}
     >
-      <div className="min-h-screen selection:bg-indigo-100 selection:text-indigo-900 pb-20">
+      <div className="min-h-screen selection:bg-indigo-100 selection:text-indigo-900 pb-20 overflow-x-hidden">
         <div className="max-w-7xl mx-auto px-6 pt-10">
-          <Header
-            loading={loading}
-            onReload={fetchAPI}
-            sessionTime={sessionTime}
-          />
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
+            <Header
+              loading={loading}
+              onReload={fetchAPI}
+              sessionTime={sessionTime}
+            />
+          </motion.div>
 
           {error && (
-            <div className="mb-8 p-6 bg-red-50 border border-red-100 rounded-3xl flex items-center gap-4 text-red-700 shadow-sm animate-bounce">
-              <div className="w-10 h-10 rounded-full bg-red-100 flex items-center justify-center">
+            <div className="mb-8 p-6 bg-red-50 border border-red-100 rounded-3xl flex items-center gap-4 text-red-700 shadow-sm font-black uppercase tracking-tighter italic text-left">
+              Critical Error: {error}
+            </div>
+          )}
+
+          {!loading && (
+            <div className="flex gap-2 mb-6">
+              <button
+                onClick={() =>
+                  undo(setSelectedProfile, setSelectedSkills, setSelectedLayers)
+                }
+                disabled={!canUndo}
+                className="px-4 py-2 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-600 disabled:opacity-30 transition-all flex items-center gap-2 shadow-sm hover:bg-slate-50"
+              >
                 <svg
-                  className="h-6 w-6"
+                  className="h-3.5 w-3.5"
                   fill="none"
                   viewBox="0 0 24 24"
                   stroke="currentColor"
@@ -258,13 +258,33 @@ function App() {
                     strokeLinecap="round"
                     strokeLinejoin="round"
                     strokeWidth={2}
-                    d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
+                    d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6"
                   />
                 </svg>
-              </div>
-              <span className="font-black uppercase tracking-tighter italic">
-                Critical Error: {error}
-              </span>
+                Undo
+              </button>
+              <button
+                onClick={() =>
+                  redo(setSelectedProfile, setSelectedSkills, setSelectedLayers)
+                }
+                disabled={!canRedo}
+                className="px-4 py-2 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-600 disabled:opacity-30 transition-all flex items-center gap-2 shadow-sm hover:bg-slate-50"
+              >
+                Redo
+                <svg
+                  className="h-3.5 w-3.5"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M21 10h-10a8 8 0 00-8 8v2m18-10l-6 6m6-6l-6-6"
+                  />
+                </svg>
+              </button>
             </div>
           )}
 
@@ -272,45 +292,42 @@ function App() {
             <div className="lg:col-span-5 xl:col-span-4 h-[750px]">
               <ConfigOptions
                 data={data}
+                loading={loading}
                 selectedProfile={selectedProfile}
-                setSelectedProfile={setSelectedProfile}
+                setSelectedProfile={updateProfile}
                 selectedProvider={selectedProvider}
                 setSelectedProvider={setSelectedProvider}
               />
             </div>
-
             <div className="lg:col-span-7 xl:col-span-8 h-[750px]">
               <AgentPreview
                 data={data}
+                loading={loading}
                 selectedProfile={selectedProfile}
                 selectedSkills={selectedSkills}
                 selectedLayers={selectedLayers}
                 selectedProvider={selectedProvider}
                 agentName={agentName}
                 setAgentName={setAgentName}
-                setSelectedSkills={setSelectedSkills}
-                setSelectedLayers={setSelectedLayers}
+                setSelectedSkills={updateSkills}
+                setSelectedLayers={updateLayers}
                 onSave={handleSaveAgent}
                 isDragging={isDragging}
               />
             </div>
           </main>
 
-          <SavedAgents
-            agents={savedAgents}
+          <SavedAgentsSection
+            savedAgents={savedAgents}
             data={data}
-            onLoad={handleLoadAgent}
-            onDelete={handleDeleteAgent}
+            onLoadAgent={handleLoadAgent}
+            onDeleteAgent={handleDeleteAgent}
             onClearAll={handleClearAll}
           />
+
+          <DeveloperAgent />
         </div>
-        <ToastContainer
-          position="top-right"
-          theme="light"
-          toastClassName={() =>
-            "relative flex p-1 min-h-10 rounded-2xl justify-between overflow-hidden cursor-pointer bg-white border border-slate-100 shadow-2xl mb-4 p-4"
-          }
-        />
+        <ToastContainer position="top-right" theme="light" />
       </div>
     </DndContext>
   );

@@ -1,34 +1,109 @@
-# AI Agent Profile Builder
+# 🤖 AI Agent Orchestrator
 
-Welcome to the AI Agent Profile Builder! 
+A professional-grade, high-performance interface for synthesizing autonomous AI agents. Built with a focus on exceptional UX, robust state management, and modern architectural patterns.
 
-In this project, you will be taking over a partially built "AI Agent Builder" interface. The current state is functional in principle, but it's suffering from severe performance issues, logical bugs, and a lack of styling.
+- **Live Deployment:** [AI Agent Orchestrator Live on Netlify](https://frontend-task-ranak8811.netlify.app/)
 
-Your goal is to transform this raw scaffold into a polished, performant, and visually appealing web application.
+![AI Agent Orchestrator](./public/Agent_Builder.png)
 
-## 🎯 Your Mission
+---
 
-1. **Fork this Repository:** Start by making a public fork of this repository to your own GitHub account.
-2. **Fix the Bugs:** We have intentionally left several React anti-patterns and performance bottlenecks in the codebase. Identify them, fix them, and explain your fixes in your PR description.
-3. **Elevate the UI/UX:** The current UI is a skeleton using basic dropdowns. We want you to wow us with a much more intuitive and user-friendly experience—**preferably implementing a drag-and-drop interface** to construct the agent instead of the current select menus. Implement a responsive, modern, and beautiful design. Feel free to use appropriate CSS frameworks (Tailwind, CSS Modules, Styled Components) and component libraries (like dnd-kit or react-beautiful-dnd) if you prefer.
-   - **⭐️ Design Process:** The strongest engineers don't just write code; they think about the user. While not strictly required, candidates who share a Figma file (or similar) detailing their thought process and design iterations before building stand out significantly from the crowd. Feel free to include a link in your PR description!
-4. **Submit a Pull Request:** Once you are satisfied with your work, open a Pull Request against this original repository.
-   - If you have created a design for this challenge. Make sure to link it here. If not, leave it as is.
+## 🚀 Project Overview
 
-   **DESIGN LINK** = <public_url_here>
-   - **IMPORTANT:** In the PR, make sure to put your CV in the `public` folder (as a PDF). You can also present your CV in the frontend in a creative way; but the pdf in the `public` folder is a must.
+The **AI Agent Orchestrator** is a cutting-edge builder tool designed to transform the way developers and system architects conceptualize AI agents. This project goes beyond a simple interface, implementing professional-level features like state history, real-time computational analytics, and a seamless drag-and-drop experience.
 
-## 🤖 AI Tool Usage
-We are a very AI-positive company! The use of AI coding assistants, LLMs, or other supporting tools is highly encouraged and **will not harm your chances**. 
+---
 
-If you used any AI tools to assist you with this project (e.g., ChatGPT, Claude, GitHub Copilot, Cursor, etc.), please create a brief section in your PR description listing them and how you utilized them.
+## ✨ Key Features & Technical Implementation
 
-## 📝 Evaluation Criteria
+### 1. **Advanced Drag & Drop Builder**
 
-We will be evaluating your submission based on:
-1. **React Fundamentals:** Did you identify and correctly fix the intentional performance and scoping bugs? Is your component state managed logically?
-2. **Code Quality:** Is your code clean, readable, and well-structured? Did you extract components appropriately?
-3. **Design & UX:** Does the final application look professional and feel good to use? Is it responsive?
-4. **Communication:** Does your PR description clearly explain the architectural decisions you made, the bugs you found, and how you fixed them?
+- **The Experience:** Replaced traditional dropdown menus with a fluid, module-based assembly system. Users can grab skills and personality layers from the library and drop them directly into the "Capability Integration" and "Behavioral Filter" zones.
+- **The Tech:** Built using **@dnd-kit/core** and **@dnd-kit/utilities**. It utilizes `useDraggable` and `useDroppable` hooks to manage precise drop targets and visual feedback during interaction.
 
-Good luck! We can't wait to see what you build.
+### 2. **Professional Undo / Redo Engine**
+
+- **The Experience:** Total control over the build process. Just like high-end design tools (Figma/Photoshop), users can revert any mistake or restore an action.
+- **The Tech:** Implemented via a custom hook **`useBuilderHistory`**. It maintains a persistent `history` stack and a `redoStack`, utilizing `useCallback` for performance optimization and ensuring the state remains consistent across complex transitions.
+
+### 3. **Real-time System Analytics (Computed State)**
+
+- **The Experience:** As you build, the system provides immediate feedback on three critical metrics:
+  - **Intelligence Score:** Reflects the complexity of the agent's core and integrated skills.
+  - **System Load:** Monitors the overhead of the integrated behavioral filters.
+  - **Neural Latency:** Estimates response speed based on the current architecture.
+- **The Tech:** Utilizes **Advanced Derived State** patterns with `useMemo`. Scores are calculated dynamically based on weights assigned to different module types, demonstrating high-level data orchestration.
+
+### 4. **Module Search & Scalability Protocols**
+
+- **The Experience:** A high-speed search bar filters through dozens of modules across different tabs (Skills/Layers) in real-time.
+- **The Tech:** Optimized search logic using **case-insensitive regex matching** wrapped in `useMemo` to prevent unnecessary re-renders, ensuring the UI stays snappy even as the data library grows.
+
+### 5. **Skeleton Architecture & Perceived Performance**
+
+- **The Experience:** During data synchronization, the app displays custom "Shimmer" skeleton loaders instead of basic spinners.
+- **The Tech:** A dedicated **`SkeletonLoader`** component provides a structural preview of the interface, significantly improving user retention and perceived load speeds.
+
+### 6. **Architecture Export Protocol (JSON)**
+
+- **The Experience:** Users can export their complete agent blueprint as a portable `.json` configuration file.
+- **The Tech:** A custom file-generation utility that serializes the current React state into a Blob and triggers a client-side download.
+
+### 7. **Premium UI/UX Integration**
+
+- **Framer Motion:** Powering all micro-interactions and the "Active Fleet" layout transitions.
+- **SweetAlert2:** Integrated for critical system actions like fleet decommissioning, providing a custom-styled, high-contrast warning protocol.
+- **React Toastify:** Real-time event logging at the top-right of the interface.
+- **Tailwind CSS v4:** Utilizing the latest utility-first features for a responsive, glassmorphic aesthetic.
+
+---
+
+## 🛠️ Technical Stack
+
+- **Framework:** React 19 (TypeScript)
+- **Styling:** Tailwind CSS v4
+- **State Orchestration:** Custom History Hooks + Context
+- **Interactions:** @dnd-kit Suite
+- **Animations:** Framer Motion
+- **UI Components:** SweetAlert2, React Toastify
+- **Build Tool:** Vite
+
+---
+
+## 👨‍💻 Developed By
+
+**Md. Anwar Hossain**  
+_B.Sc. in Computer Science & Engineering_
+
+Specialized in synthesizing high-performance React environments with cutting-edge aesthetic protocols.
+
+- **Portfolio:** [anwar-portfolio-a49f2.web.app](https://anwar-portfolio-a49f2.web.app/)
+- **LinkedIn:** [ranak8811](https://www.linkedin.com/in/ranak8811/)
+- **GitHub:** [@ranak8811](https://github.com/ranak8811)
+- **Email:** anwar.hossain.rana8811@gmail.com
+- **WhatsApp:** [+880 1789 133715](https://wa.me/8801789133715)
+
+---
+
+## 📦 Installation & Setup
+
+1. **Clone the repository:**
+   ```bash
+   git clone https://github.com/ranak8811/ai-agent-builder.git
+   ```
+2. **Install dependencies:**
+   ```bash
+   npm install
+   ```
+3. **Run development server:**
+   ```bash
+   npm run dev
+   ```
+4. **Build for production:**
+   ```bash
+   npm run build
+   ```
+
+---
+
+_Authorized Build Protocol 774-Alpha // © 2026 Anwar Hossain_
