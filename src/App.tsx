@@ -1,4 +1,14 @@
 import { useState, useEffect, useRef } from "react";
+import {
+  DndContext,
+  PointerSensor,
+  useSensor,
+  useSensors,
+} from "@dnd-kit/core";
+import type { DragEndEvent } from "@dnd-kit/core";
+import { ToastContainer, toast } from "react-toastify";
+import "react-toastify/dist/ReactToastify.css";
+
 import type { AgentData, SavedAgent } from "./agent-types";
 import { Header } from "./components/layout/Header";
 import { ConfigOptions } from "./components/builder/ConfigOptions";
@@ -16,9 +26,21 @@ function App() {
   const [selectedLayers, setSelectedLayers] = useState<string[]>([]);
   const [selectedProvider, setSelectedProvider] = useState<string>("");
 
+  // Drag state
+  const [isDragging, setIsDragging] = useState(false);
+
   // Saving states
-  const [agentName, setAgentName] = useState("");
   const [savedAgents, setSavedAgents] = useState<SavedAgent[]>([]);
+  const [agentName, setAgentName] = useState("");
+
+  // Sensors for better DND experience
+  const sensors = useSensors(
+    useSensor(PointerSensor, {
+      activationConstraint: {
+        distance: 8,
+      },
+    }),
+  );
 
   // Ref to track agentName for the analytics heartbeat
   const agentNameRef = useRef(agentName);
@@ -67,7 +89,7 @@ function App() {
     setLoading(true);
     setError(null);
     try {
-      const delay = Math.floor(Math.random() * 1000) + 500;
+      const delay = Math.floor(Math.random() * 800) + 400;
       await new Promise((resolve) => setTimeout(resolve, delay));
 
       const response = await fetch("/data.json");
@@ -76,9 +98,11 @@ function App() {
       }
       const jsonData: AgentData = await response.json();
       setData(jsonData);
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error("Error fetching data:", err);
-      setError(err.message || "Failed to fetch agent data");
+      setError(
+        err instanceof Error ? err.message : "Failed to fetch agent data",
+      );
     } finally {
       setLoading(false);
     }
@@ -88,25 +112,21 @@ function App() {
     fetchAPI();
   }, []);
 
-  const handleLayerSelect = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    const layerId = e.target.value;
-    if (layerId && !selectedLayers.includes(layerId)) {
-      setSelectedLayers((prev) => [...prev, layerId]);
-    }
-    e.target.value = "";
-  };
-
-  const handleSkillSelect = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    const skillId = e.target.value;
-    if (skillId && !selectedSkills.includes(skillId)) {
-      setSelectedSkills((prev) => [...prev, skillId]);
-    }
-    e.target.value = "";
-  };
-
   const handleSaveAgent = () => {
     if (!agentName.trim()) {
-      alert("Please enter a name for your agent.");
+      toast.error("Identity required. Please enter an agent name.", {
+        className: "font-bold",
+      });
+      return;
+    }
+
+    if (!selectedProfile) {
+      toast.warning(
+        "Architecture incomplete. Select a base intelligence core.",
+        {
+          className: "font-bold",
+        },
+      );
       return;
     }
 
@@ -118,11 +138,15 @@ function App() {
       provider: selectedProvider,
     };
 
-    const updatedAgents = [...savedAgents, newAgent];
+    const updatedAgents = [newAgent, ...savedAgents]; // Newest first
     setSavedAgents(updatedAgents);
     localStorage.setItem("savedAgents", JSON.stringify(updatedAgents));
     setAgentName("");
-    alert(`Agent "${newAgent.name}" successfully deployed!`);
+
+    toast.success(`Unit ${newAgent.name} successfully commissioned.`, {
+      icon: <span>⚡</span>,
+      className: "font-bold rounded-2xl shadow-2xl",
+    });
   };
 
   const handleLoadAgent = (agent: SavedAgent) => {
@@ -132,91 +156,163 @@ function App() {
     setAgentName(agent.name);
     setSelectedProvider(agent.provider || "");
     window.scrollTo({ top: 0, behavior: "smooth" });
+    toast.info(`Hot-loading: ${agent.name}`, {
+      className: "font-bold rounded-2xl",
+    });
   };
 
   const handleDeleteAgent = (indexToRemove: number) => {
+    const agentToDelete = savedAgents[indexToRemove];
     const updatedAgents = savedAgents.filter(
       (_, index) => index !== indexToRemove,
     );
     setSavedAgents(updatedAgents);
     localStorage.setItem("savedAgents", JSON.stringify(updatedAgents));
+    toast.error(`Unit ${agentToDelete.name} decommissioned.`, {
+      className: "font-bold rounded-2xl",
+    });
   };
 
   const handleClearAll = () => {
     if (
-      confirm("Decommission the entire fleet? This action is irreversible.")
+      confirm("Decommission entire fleet? All active units will be terminated.")
     ) {
       setSavedAgents([]);
       localStorage.removeItem("savedAgents");
+      toast.error("Fleet terminated. All data purged.", {
+        className: "font-bold rounded-2xl",
+      });
+    }
+  };
+
+  const handleDragStart = () => {
+    setIsDragging(true);
+  };
+
+  const handleDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event;
+    setIsDragging(false);
+
+    if (!over) return;
+
+    const [type, id] = (active.id as string).split(":");
+    const itemName = active.data.current?.name;
+
+    if (type === "skill" && over.id === "skills-drop") {
+      if (!selectedSkills.includes(id)) {
+        setSelectedSkills((prev) => [...prev, id]);
+        toast.success(`Integrated: ${itemName}`, {
+          autoClose: 1000,
+          hideProgressBar: true,
+          className: "font-bold rounded-xl",
+        });
+      } else {
+        toast.info(`${itemName} is already integrated.`, {
+          autoClose: 1000,
+          hideProgressBar: true,
+          className: "font-bold rounded-xl",
+        });
+      }
+    } else if (type === "layer" && over.id === "layers-drop") {
+      if (!selectedLayers.includes(id)) {
+        setSelectedLayers((prev) => [...prev, id]);
+        toast.success(`Applied Filter: ${itemName}`, {
+          autoClose: 1000,
+          hideProgressBar: true,
+          className: "font-bold rounded-xl",
+        });
+      } else {
+        toast.info(`${itemName} is already active.`, {
+          autoClose: 1000,
+          hideProgressBar: true,
+          className: "font-bold rounded-xl",
+        });
+      }
     }
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-900 font-sans selection:bg-indigo-100 selection:text-indigo-900">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <Header
-          loading={loading}
-          onReload={fetchAPI}
-          sessionTime={sessionTime}
-        />
+    <DndContext
+      sensors={sensors}
+      onDragStart={handleDragStart}
+      onDragEnd={handleDragEnd}
+    >
+      <div className="min-h-screen selection:bg-indigo-100 selection:text-indigo-900 pb-20">
+        <div className="max-w-7xl mx-auto px-6 pt-10">
+          <Header
+            loading={loading}
+            onReload={fetchAPI}
+            sessionTime={sessionTime}
+          />
 
-        {error && (
-          <div className="mb-8 p-4 bg-red-50 border border-red-100 rounded-xl flex items-center gap-3 text-red-700">
-            <svg
-              className="h-5 w-5"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+          {error && (
+            <div className="mb-8 p-6 bg-red-50 border border-red-100 rounded-3xl flex items-center gap-4 text-red-700 shadow-sm animate-bounce">
+              <div className="w-10 h-10 rounded-full bg-red-100 flex items-center justify-center">
+                <svg
+                  className="h-6 w-6"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
+                  />
+                </svg>
+              </div>
+              <span className="font-black uppercase tracking-tighter italic">
+                Critical Error: {error}
+              </span>
+            </div>
+          )}
+
+          <main className="grid grid-cols-1 lg:grid-cols-12 gap-10 items-stretch">
+            <div className="lg:col-span-5 xl:col-span-4 h-[750px]">
+              <ConfigOptions
+                data={data}
+                selectedProfile={selectedProfile}
+                setSelectedProfile={setSelectedProfile}
+                selectedProvider={selectedProvider}
+                setSelectedProvider={setSelectedProvider}
               />
-            </svg>
-            <span className="font-medium">System Error: {error}</span>
-          </div>
-        )}
+            </div>
 
-        <main className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-stretch">
-          <div className="lg:col-span-5 xl:col-span-4">
-            <ConfigOptions
-              data={data}
-              selectedProfile={selectedProfile}
-              setSelectedProfile={setSelectedProfile}
-              selectedProvider={selectedProvider}
-              setSelectedProvider={setSelectedProvider}
-              onSkillSelect={handleSkillSelect}
-              onLayerSelect={handleLayerSelect}
-            />
-          </div>
+            <div className="lg:col-span-7 xl:col-span-8 h-[750px]">
+              <AgentPreview
+                data={data}
+                selectedProfile={selectedProfile}
+                selectedSkills={selectedSkills}
+                selectedLayers={selectedLayers}
+                selectedProvider={selectedProvider}
+                agentName={agentName}
+                setAgentName={setAgentName}
+                setSelectedSkills={setSelectedSkills}
+                setSelectedLayers={setSelectedLayers}
+                onSave={handleSaveAgent}
+                isDragging={isDragging}
+              />
+            </div>
+          </main>
 
-          <div className="lg:col-span-7 xl:col-span-8 h-full">
-            <AgentPreview
-              data={data}
-              selectedProfile={selectedProfile}
-              selectedSkills={selectedSkills}
-              selectedLayers={selectedLayers}
-              selectedProvider={selectedProvider}
-              agentName={agentName}
-              setAgentName={setAgentName}
-              setSelectedSkills={setSelectedSkills}
-              setSelectedLayers={setSelectedLayers}
-              onSave={handleSaveAgent}
-            />
-          </div>
-        </main>
-
-        <SavedAgents
-          agents={savedAgents}
-          data={data}
-          onLoad={handleLoadAgent}
-          onDelete={handleDeleteAgent}
-          onClearAll={handleClearAll}
+          <SavedAgents
+            agents={savedAgents}
+            data={data}
+            onLoad={handleLoadAgent}
+            onDelete={handleDeleteAgent}
+            onClearAll={handleClearAll}
+          />
+        </div>
+        <ToastContainer
+          position="top-right"
+          theme="light"
+          toastClassName={() =>
+            "relative flex p-1 min-h-10 rounded-2xl justify-between overflow-hidden cursor-pointer bg-white border border-slate-100 shadow-2xl mb-4 p-4"
+          }
         />
       </div>
-    </div>
+    </DndContext>
   );
 }
 
