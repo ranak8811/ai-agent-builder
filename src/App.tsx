@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 
 // Define the types based on data.json
 interface AgentProfile {
@@ -50,6 +50,12 @@ function App() {
   const [savedAgents, setSavedAgents] = useState<SavedAgent[]>([])
   const [selectedProvider, setSelectedProvider] = useState<string>('')
 
+  // Ref to track agentName for the analytics heartbeat
+  const agentNameRef = useRef(agentName)
+  useEffect(() => {
+    agentNameRef.current = agentName
+  }, [agentName])
+
   const handleDeleteAgent = (indexToRemove: number) => {
     const updatedAgents = savedAgents.filter((_, index) => index !== indexToRemove)
     setSavedAgents(updatedAgents)
@@ -79,8 +85,9 @@ function App() {
 
   useEffect(() => {
     const analyticsInterval = setInterval(() => {
-      if (agentName !== '') {
-        console.log(`[Analytics Heartbeat] User is working on agent named: "${agentName}"`)
+      const currentName = agentNameRef.current
+      if (currentName !== '') {
+        console.log(`[Analytics Heartbeat] User is working on agent named: "${currentName}"`)
       } else {
         console.log(`[Analytics Heartbeat] User is working on an unnamed agent draft...`)
       }
@@ -119,22 +126,17 @@ function App() {
   const handleLayerSelect = (e: React.ChangeEvent<HTMLSelectElement>) => {
     const layerId = e.target.value;
     if (layerId && !selectedLayers.includes(layerId)) {
-      selectedLayers.push(layerId)
-      setSelectedLayers(selectedLayers)
+      setSelectedLayers(prev => [...prev, layerId])
     }
     e.target.value = ""; // Reset dropdown
-
-    fetchAPI()
   }
 
   const handleSkillSelect = (e: React.ChangeEvent<HTMLSelectElement>) => {
     const skillId = e.target.value;
     if (skillId && !selectedSkills.includes(skillId)) {
-      setSelectedSkills([...selectedSkills, skillId]);
+      setSelectedSkills(prev => [...prev, skillId]);
     }
     e.target.value = ""; // Reset dropdown
-
-    fetchAPI()
   }
 
   const handleSaveAgent = () => {
@@ -206,7 +208,6 @@ function App() {
                     value={selectedProfile}
                     onChange={(e) => {
                       setSelectedProfile(e.target.value)
-                      fetchAPI()
                     }}
                     style={{ width: '100%', padding: '0.5rem' }}
                   >
